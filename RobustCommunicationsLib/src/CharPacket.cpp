@@ -1,0 +1,30 @@
+#include <cstring>
+
+#include "CharPacket.hpp"
+
+using namespace RobustCommunications;
+
+void CharPacket::toArray(uint8_t* buffer, bool ignoreData)
+{
+	uint8_t* bufferPtr = buffer;
+	*bufferPtr++ = header[0];
+	*bufferPtr++ = header[1];
+
+	memcpy(bufferPtr, moduleName, strlen(moduleName));
+	bufferPtr += strlen(moduleName);
+
+	*bufferPtr++ = charPacketSeperator;
+
+	memcpy(bufferPtr, commandName, strlen(commandName));
+	bufferPtr += strlen(commandName);
+    if(!ignoreData){
+        *bufferPtr++ = charPacketSeperator;
+
+        memcpy(bufferPtr, data, strlen(data));
+        bufferPtr += strlen(data);
+    }
+	*bufferPtr++ = footer;
+	*bufferPtr++ = '\0';
+
+	DEBUGPRINTF("Databuffer is %s", (char*)buffer);
+}
