@@ -7,8 +7,11 @@
 #include <stdint.h>
 
 #include "Config.hpp"
+#include "DataPackerUnpacker.hpp"
 
 namespace RobustCommunications{
+    
+    
 class BinaryPacket{
     public:
         BinaryPacket(){}
@@ -31,7 +34,7 @@ class BinaryPacket{
         uint8_t command;
         uint16_t dataSize;
         uint16_t crc;
-        std::array<uint8_t, MaxDataBytes> data;
+        DataPackerUnpacker data;
 
         BinaryPacket arrayToPacket(uint8_t* buffer, bool ignoreData = false);
         void toArray(uint8_t* buffer, bool ignoreData = false);

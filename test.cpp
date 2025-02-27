@@ -19,9 +19,7 @@ const uint16_t TestChannelValue = 1500;
 bool setChannel(BinaryPacket* packet)
 {
     if (packet->dataSize != 3) return false;
-
-    channelNumber = packet->data[0];
-    channelValue = packet->data[1] | packet->data[2] << 8;
+    [channelNumber, channelValue] = packet.data.unpack<uint8_t, uint16_t>();
 
     if (channelNumber != 1) return false;
     if (channelValue != 1500) return false;
@@ -165,7 +163,7 @@ TEST_F(BinaryTestFixture, test_binary_packet_to_array)
     testData.packet.moduleClass = 0x01;
     testData.packet.command = 0x01;
     testData.packet.dataSize = 1;
-    testData.packet.data[0] = 0x01;
+    testData.packet.data.pack(uint8_t{0x01});
     testData.packetSize = BinaryPacket::InformationSize + 1;
     testData.packetBytes = (uint8_t*)malloc(testData.packetSize);
     testData.packet.toArray(testData.packetBytes);
@@ -193,9 +191,7 @@ TEST_F(BinaryTestFixture, set_via_bin_packet)
     testData.packet.moduleClass = 0x01;
     testData.packet.command = 0x01;
     testData.packet.dataSize = 3;
-    testData.packet.data[0] = 0x01;
-    testData.packet.data[1] = (uint8_t)(TestChannelValue & 0xFF);
-    testData.packet.data[2] = (uint8_t)(TestChannelValue >> 8);
+    testData.packet.data.pack(uint8_t{0x01}, uint16_t{TestChannelValue});
     testData.packetSize = BinaryPacket::InformationSize + 3;
     testData.packetBytes = (uint8_t*)malloc(testData.packetSize);
     testData.packet.toArray(testData.packetBytes);
@@ -213,7 +209,7 @@ TEST_F(BinaryTestFixture, get_via_bin_packet)
     testData.packet.moduleClass = 0x01;
     testData.packet.command = 0x01;
     testData.packet.dataSize = 1;
-    testData.packet.data[0] = 0x01;
+    testData.packet.data.pack(uint8_t{0x01});
     testData.packet.status.requestType = 1;
     testData.packetSize = BinaryPacket::InformationSize + 1;
     testData.packetBytes = (uint8_t*)malloc(testData.packetSize);

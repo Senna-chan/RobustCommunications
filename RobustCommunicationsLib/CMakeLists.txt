@@ -9,10 +9,11 @@ file(GLOB source_files
   "src/RobustCommunicationLib.cpp"
 )
 file(GLOB header_files 
-  "inc/Config.hpp"
   "inc/BinaryPacket.hpp"
   "inc/CharPacket.hpp"
   "inc/CommandDefinition.hpp"
+  "inc/Config.hpp"
+  "inc/DataPackerUnpacker.hpp"
   "inc/HumanToMachineString.hpp"
   "inc/RobustCommunicationLib.hpp"
   "inc/virt_array.hpp"

@@ -23,7 +23,7 @@ void BinaryPacket::toArray(uint8_t* buffer, bool ignoreData){
 	}
 	if (!ignoreData)
 	{
-		std::memcpy(&buffer[bufferIndex], data.begin(), dataSize);
+		std::memcpy(&buffer[bufferIndex], data.data.begin(), dataSize);
 	}
 	DEBUGPRINTF("\tbdata: ");
 	for(int i = bufferIndex; i < bufferIndex + dataSize; i++)

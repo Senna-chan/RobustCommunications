@@ -28,3 +28,20 @@ void CharPacket::toArray(uint8_t* buffer, bool ignoreData)
 
 	DEBUGPRINTF("Databuffer is %s", (char*)buffer);
 }
+
+std::string RobustCommunications::CharPacket::toString(bool ignoreData)
+{
+	auto ret = std::string();
+	ret.reserve(2 + 10 + 30 + 1);
+	ret += header;
+	ret += moduleName;
+	ret += charPacketSeperator;
+	ret += commandName;
+	if(!ignoreData)
+	{
+		ret += charPacketSeperator;
+		ret += data;
+	}
+	ret += footer;
+	return ret;
+}

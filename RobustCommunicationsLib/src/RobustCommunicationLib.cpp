@@ -80,20 +80,21 @@ bool RobustCommunication::singleThreadLoop()
 				if (p == '>')
 				{
 					DEBUGPRINTF("SETTER found");
-					hardware.read();
-					currentBinaryPacket.status.requestType = 0;
+					currentBinaryPacket.status.requestType = BinaryPacket::RequestType::SETTER;
 				}
 				else if (p == '<')
 				{
 					DEBUGPRINTF("GETTER found");
-					hardware.read();
-					currentBinaryPacket.status.requestType = 1;
+					currentBinaryPacket.status.requestType = BinaryPacket::RequestType::GETTER;
 				}
 				else if(p == '=')
 				{
 					DEBUGPRINTF("RESPONSE FOUND");
-					hardware.read();
+					currentBinaryPacket.status.requestType = BinaryPacket::RequestType::RESPONSE;
+				} else{
+					DEBUGPRINTF("ERROR: Char '%s' is not a request type\n", p);
 				}
+				hardware.read();
 				currentReadState = READING_MODULE;
 			}
 			else if (b == '?')
@@ -174,7 +175,7 @@ void RobustCommunication::readForBinaryPacket()
 		currentReadState = READING_CRC;
 		if (currentBinaryPacket.dataSize != 0)
 		{
-			currentBinaryPacket.data.fill(0);
+			currentBinaryPacket.data.clear();
 		}
 	}
 	break;
@@ -206,7 +207,7 @@ void RobustCommunication::readForBinaryPacket()
 			uint8_t p = hardware.peek();
 			dataReadBuffer[dataReadBufferIndex] = b;
 			uint16_t dataBufferIndex = dataReadBufferIndex - (BinaryPacket::InformationSize - 2);
-			currentBinaryPacket.data[dataBufferIndex] = b;
+			currentBinaryPacket.data.pack(b);
 			dataReadBufferIndex++;
 			readCycleCounter--;
 			dataBytesToRead--;
@@ -369,8 +370,8 @@ void RobustCommunication::parseCharPacket()
 	if (moduleFound && commandFound)
 	{
 		currentBinaryPacket.dataSize = 0;
-		currentBinaryPacket.data.fill(0);
-		uint8_t* bufPtr = currentBinaryPacket.data.begin();
+		currentBinaryPacket.data.clear();
+		uint8_t* bufPtr = currentBinaryPacket.data.data.begin();
 		const char* data = currentCharPacket.data;
 		const char* dataP = data;
 		for (auto formatToken : foundDefinition->getIncomingFormat())
@@ -416,11 +417,11 @@ void RobustCommunication::parseCharPacket()
 		}
 		else
 		{
-			if (currentBinaryPacket.status.requestType)
+			if (currentBinaryPacket.status.requestType == BinaryPacket::RequestType::GETTER)
 			{
 				currentBinaryPacket.dataSize = 0;
-				uint8_t* bufPtr = currentBinaryPacket.data.begin();
-				memset(currentCharPacket.data, 0, 2024);
+				uint8_t* bufPtr = currentBinaryPacket.data.data.begin();
+				memset(currentCharPacket.data, 0, MaxDataBytes);
 				char* dataP = currentCharPacket.data;
 				
 				for (auto formatToken : foundDefinition->getOutgoingFormat())
@@ -465,79 +466,7 @@ void RobustCommunication::addCommandDefinition(CommandDefinition* definition)
 {
 	if (freeDefinitionIndex != definitionSize)
 	{
-		CommandDefinition newDefinition = *definition;
-		// if (newDefinition.incomingHRDataStringLayout != nullptr && strcmp(newDefinition.incomingHRDataStringLayout, ""))
-		// {
-		// 	newDefinition.expectedsscanfDataSize = 0;
-		// 	char dataFormat[128];
-		// 	uint8_t dataFormatIndex = 0;
-		// 	char dataLayout[128];
-		// 	strcpy(dataLayout, newDefinition.incomingHRDataStringLayout);
-		// 	char* dataLayoutToken;
-		// 	dataLayoutToken = strtok(dataLayout, ",");
-		// 	while (dataLayoutToken != NULL)
-		// 	{
-		// 		strTypeToFormat foundFormat;
-		// 		foundFormat.byteSize = 255;
-		// 		int index = 0;
-		// 		for (strTypeToFormat strTypeFormat : strTypeToFormatMap)
-		// 		{
-		// 			if (!strcmp(strTypeFormat.shortName, dataLayoutToken))
-		// 			{
-		// 				foundFormat = strTypeFormat;
-		// 				newDefinition.sscanfFormat.push_back(index);
-		// 				newDefinition.expectedsscanfDataSize += foundFormat.byteSize;
-		// 				break;
-		// 			}
-		// 			index++;
-		// 		}
-
-		// 		if (foundFormat.byteSize == 255)
-		// 		{
-		// 			DEBUGPRINTF("ERROR, token %s not found\n", dataLayoutToken);
-		// 		}
-		// 		dataLayoutToken = strtok(NULL, ",");
-		// 	}
-		// 	free(dataLayoutToken);
-		// }
-
-		// if (newDefinition.outgoingHRDataStringLayout != nullptr && strcmp(newDefinition.outgoingHRDataStringLayout, ""))
-		// {
-		// 	newDefinition.expectedsprintfDataSize = 0;
-		// 	char dataFormat[128];
-		// 	uint8_t dataFormatIndex = 0;
-		// 	char dataLayout[128];
-		// 	strcpy(dataLayout, newDefinition.outgoingHRDataStringLayout);
-		// 	char* dataLayoutToken;
-		// 	dataLayoutToken = strtok(dataLayout, ",");
-		// 	while (dataLayoutToken != NULL)
-		// 	{
-		// 		strTypeToFormat foundFormat;
-		// 		foundFormat.byteSize = 255;
-
-		// 		int index = 0;
-		// 		for (strTypeToFormat strTypeFormat : strTypeToFormatMap)
-		// 		{
-		// 			if (!strcmp(strTypeFormat.shortName, dataLayoutToken))
-		// 			{
-		// 				foundFormat = strTypeFormat;
-		// 				newDefinition.sprintfFormat.push_back(index);
-		// 				newDefinition.expectedsprintfDataSize += foundFormat.byteSize;
-		// 				break;
-		// 			}
-		// 			index++;
-		// 		}
-
-		// 		if (foundFormat.byteSize == 255)
-		// 		{
-		// 			DEBUGPRINTF("ERROR, token %s not found\n", dataLayoutToken);
-		// 		}
-		// 		dataLayoutToken = strtok(NULL, ",");
-		// 	}
-		// 	free(dataLayoutToken);
-		// }
-		
-		definitions[freeDefinitionIndex++] = newDefinition;
+		definitions[freeDefinitionIndex++] = *definition;
 	}
 }
 
@@ -569,7 +498,7 @@ void RobustCommunication::writeBinaryPacket(BinaryPacket* packet)
 	}
 	for (int i = 0; i < packet->dataSize; i++)
 	{
-		hardware.write(packet->data[i]);
+		hardware.write(packet->data.data[i]);
 	}
 }
 
