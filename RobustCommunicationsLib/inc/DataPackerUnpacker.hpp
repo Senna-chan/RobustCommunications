@@ -13,7 +13,7 @@ class DataPackerUnpacker{
     public:
         std::array<uint8_t, MaxDataBytes> data = {0};
     private:
-       int dataIndex = 0;
+       size_t dataIndex = 0;
        template<typename Fun, typename...Ts>
        void sequential_foreach(Fun f, const Ts&... args) {
            (void) std::initializer_list<int>{
@@ -43,14 +43,22 @@ class DataPackerUnpacker{
         }
        
         template<typename...ValueTypes>
-        std::tuple<ValueTypes...> unpack() {
+        std::tuple<ValueTypes...> 
+        unpack() {
             return {unpack_front<ValueTypes>()...};
+        }
+
+        void setDataIndex(size_t index)
+        {
+            dataIndex = index;
         }
 
         void clear(){
             dataIndex = 0;
             data.fill(0);
         }
+        
+        uint8_t operator [] (size_t i) const {return data[i];}
 };
 };
 #endif

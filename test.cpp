@@ -19,7 +19,7 @@ const uint16_t TestChannelValue = 1500;
 bool setChannel(BinaryPacket* packet)
 {
     if (packet->dataSize != 3) return false;
-    [channelNumber, channelValue] = packet.data.unpack<uint8_t, uint16_t>();
+    std::tie(channelNumber, channelValue) = packet->data.unpack<uint8_t, uint16_t>();
 
     if (channelNumber != 1) return false;
     if (channelValue != 1500) return false;
@@ -31,8 +31,7 @@ bool getChannel(BinaryPacket* packet)
 {
     if(packet->data[0] == 1)
     {
-        packet->data[1] = TestChannelValue >> 8;
-        packet->data[0] = TestChannelValue & 0xFF;
+        packet->data.pack(TestChannelValue);
         packet->status.ack = 1;
         return true;
     }

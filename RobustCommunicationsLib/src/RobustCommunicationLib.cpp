@@ -207,7 +207,7 @@ void RobustCommunication::readForBinaryPacket()
 			uint8_t p = hardware.peek();
 			dataReadBuffer[dataReadBufferIndex] = b;
 			uint16_t dataBufferIndex = dataReadBufferIndex - (BinaryPacket::InformationSize - 2);
-			currentBinaryPacket.data.pack(b);
+			currentBinaryPacket.data.data[dataBufferIndex++] = b;
 			dataReadBufferIndex++;
 			readCycleCounter--;
 			dataBytesToRead--;

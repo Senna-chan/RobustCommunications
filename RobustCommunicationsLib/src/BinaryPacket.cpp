@@ -11,7 +11,7 @@ void BinaryPacket::toArray(uint8_t* buffer, bool ignoreData){
 	buffer[bufferIndex++] = moduleClass;
 	buffer[bufferIndex++] = command;
 	buffer[bufferIndex++] = status.binary >> 8;
-	buffer[bufferIndex++] = status.binary;
+	buffer[bufferIndex++] = status.binary & 0xFF;
 	buffer[bufferIndex++] = (dataSize >> 8);
 	buffer[bufferIndex++] = (dataSize & 0xFF);
 	buffer[bufferIndex++] = (crc >> 8);
