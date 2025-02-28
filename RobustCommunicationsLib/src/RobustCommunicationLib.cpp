@@ -1,38 +1,15 @@
-#if ARDUINO
-#define DEBUGPRINTF Serial.printf
+#include "RobustCommunicationLib.hpp"
 
-#elif PIO_UNIT_TESTING
-#include <unity.h>
-#define DEBUGPRINTF TEST_PRINTF
-#define TRACEPRINTF TEST_PRINTF
-#else
-#include <iostream>
-#include <cstdlib>
-#include <stdarg.h>
-#include <stdio.h>
-#define DEBUGPRINTF CLRPrintf
-#define TRACEPRINTF 
-
-void CLRPrintf(const char* format, ...)
-{
-	va_list ap;
-	va_start(ap, format);
-
-	vprintf(format, ap);
-	va_end(ap);
-}
-#endif
-
-#include "RobustCommunicationLib.h"
+using namespace RobustCommunications;
 
 #define IGNORE_CRC
 
 const uint8_t maxReadCyclesPerCall = 20;
 uint8_t readCycleCounter = maxReadCyclesPerCall;
 bool packetIsBinary = true;
-RobustCommunication::BinaryPacket currentBinaryPacket;
+BinaryPacket currentBinaryPacket;
 
-RobustCommunication::CharPacket currentCharPacket;
+CharPacket currentCharPacket;
 uint16_t charPacketIndex = 0; /*<! Used to keep track of seperate buffers of the char packet */
 
 uint16_t dataBytesToRead = 0;
@@ -47,24 +24,6 @@ typedef union
 	float f;
 	double d;
 } byte8union;
-
-// static const RobustCommunication::strTypeToFormat strTypeToFormatMap[16] = {
-// 	{"u8", "%hhu", 1},
-// 	{"s8", "%hhd", 1},
-// 	{"u16", "%hu", 2},
-// 	{"s16", "%hd", 2},
-// 	{"u32", "%u", 4},
-// 	{"s32", "%d", 4},
-// 	{"u64", "%lu", 8},
-// 	{"s64", "%ld", 8},
-// 	{"int", "%d", 4},
-// 	{"f", "%f", 8},
-// 	{"d", "%f", 8},
-// 	{"hex", "0x%02X", 2},
-// 	{"s", "%s", 0}, // Datasize is dynamic so that why a 0
-// 	{"c", "%c", 1}
-// };
-
 
 const char* readStateStr[] = {
 	"READING_HEADER",
@@ -121,20 +80,21 @@ bool RobustCommunication::singleThreadLoop()
 				if (p == '>')
 				{
 					DEBUGPRINTF("SETTER found");
-					hardware.read();
-					currentBinaryPacket.status.requestType = 0;
+					currentBinaryPacket.status.requestType = BinaryPacket::RequestType::SETTER;
 				}
 				else if (p == '<')
 				{
 					DEBUGPRINTF("GETTER found");
-					hardware.read();
-					currentBinaryPacket.status.requestType = 1;
+					currentBinaryPacket.status.requestType = BinaryPacket::RequestType::GETTER;
 				}
 				else if(p == '=')
 				{
 					DEBUGPRINTF("RESPONSE FOUND");
-					hardware.read();
+					currentBinaryPacket.status.requestType = BinaryPacket::RequestType::RESPONSE;
+				} else{
+					DEBUGPRINTF("ERROR: Char '%s' is not a request type\n", p);
 				}
+				hardware.read();
 				currentReadState = READING_MODULE;
 			}
 			else if (b == '?')
@@ -169,7 +129,6 @@ bool RobustCommunication::singleThreadLoop()
 
 void RobustCommunication::readForBinaryPacket()
 {
-
 	switch (currentReadState)
 	{
 	case READING_HEADER:
@@ -194,7 +153,12 @@ void RobustCommunication::readForBinaryPacket()
 
 	case READING_STATUS:
 	{
-		currentBinaryPacket.status.binary = dataReadBuffer[dataReadBufferIndex++] = hardware.read();
+		int b = hardware.read();
+		dataReadBuffer[dataReadBufferIndex++] = b;
+		currentBinaryPacket.status.binary = b << 8;
+		b = hardware.read();
+		dataReadBuffer[dataReadBufferIndex++] = b;
+		currentBinaryPacket.status.binary = b;
 		currentReadState = READING_DATASIZE;
 	}
 	break;
@@ -211,7 +175,7 @@ void RobustCommunication::readForBinaryPacket()
 		currentReadState = READING_CRC;
 		if (currentBinaryPacket.dataSize != 0)
 		{
-			currentBinaryPacket.data = (uint8_t*)malloc(currentBinaryPacket.dataSize);
+			currentBinaryPacket.data.clear();
 		}
 	}
 	break;
@@ -242,8 +206,8 @@ void RobustCommunication::readForBinaryPacket()
 			uint8_t b = hardware.read();
 			uint8_t p = hardware.peek();
 			dataReadBuffer[dataReadBufferIndex] = b;
-			uint16_t dataBufferIndex = dataReadBufferIndex - (BinaryPacketInformationSize - 2);
-			currentBinaryPacket.data[dataBufferIndex] = b;
+			uint16_t dataBufferIndex = dataReadBufferIndex - (BinaryPacket::InformationSize - 2);
+			currentBinaryPacket.data.data[dataBufferIndex++] = b;
 			dataReadBufferIndex++;
 			readCycleCounter--;
 			dataBytesToRead--;
@@ -278,7 +242,7 @@ void RobustCommunication::readForCharPacket()
 	case READING_MODULE:
 	{
 		currentCharPacket.moduleName[charPacketIndex++] = hardware.read();
-		if (hardware.peek() == charSeperator)
+		if (hardware.peek() == charPacketSeperator)
 		{
 			hardware.read();
 			currentReadState = READING_COMMAND;
@@ -290,7 +254,7 @@ void RobustCommunication::readForCharPacket()
 	case READING_COMMAND:
 	{
 		currentCharPacket.commandName[charPacketIndex++] = hardware.read();
-		if (hardware.peek() == charSeperator)
+		if (hardware.peek() == charPacketSeperator)
 		{
 			hardware.read();
 			currentReadState = READING_DATA;
@@ -369,16 +333,11 @@ void RobustCommunication::parseBinaryPacket()
 	{
 		if (!currentBinaryPacket.status.requestType)
 		{
-			free(currentBinaryPacket.data);
 			currentBinaryPacket.dataSize = 0;
 		}
 	}
 
 	writeBinaryPacket(&currentBinaryPacket);
-	if (currentBinaryPacket.dataSize != 0)
-	{
-		free(currentBinaryPacket.data);
-	}
 	currentReadState = READING_HEADER;
 }
 
@@ -387,14 +346,14 @@ void RobustCommunication::parseCharPacket()
 	bool moduleFound = false;
 	bool commandFound = false;
 	int defIndex;
-	RobustCommunication::CommsDefinition *foundDefinition;
+	CommandDefinition *foundDefinition;
 	for (defIndex = 0; defIndex < freeDefinitionIndex; defIndex++)
 	{
-		if (!strcmp(definitions[defIndex].moduleName, currentCharPacket.moduleName))
+		if (definitions[defIndex].moduleName == std::string(currentCharPacket.moduleName))
 		{
 
 			moduleFound = true;
-			if (!strcmp(definitions[defIndex].commandName, currentCharPacket.commandName))
+			if (definitions[defIndex].commandName == std::string(currentCharPacket.commandName))
 			{
 				commandFound = true;
 			}
@@ -411,18 +370,17 @@ void RobustCommunication::parseCharPacket()
 	if (moduleFound && commandFound)
 	{
 		currentBinaryPacket.dataSize = 0;
-		currentBinaryPacket.data = (uint8_t*)malloc(2024);
-		uint8_t* bufPtr = currentBinaryPacket.data;
+		currentBinaryPacket.data.clear();
+		uint8_t* bufPtr = currentBinaryPacket.data.data.begin();
 		const char* data = currentCharPacket.data;
 		const char* dataP = data;
-		for (auto index : foundDefinition->sscanfFormat)
+		for (auto formatToken : foundDefinition->getIncomingFormat())
 		{
-			strTypeToFormat formatToken = strTypeToFormatMap[index];
 			char format[20] = {0};
 			char* formatP = format;
 
-			strcpy(formatP, formatToken.format);
-			formatP += strlen(formatToken.format);
+			strcpy(formatP, formatToken->format);
+			formatP += strlen(formatToken->format);
 
 			strcpy(formatP, "%n%[^,]");
 
@@ -442,13 +400,15 @@ void RobustCommunication::parseCharPacket()
 			if (format[1] == 's') // We have read a string
 			{
 				currentBinaryPacket.dataSize += charsRead;
+			} else {
+				currentBinaryPacket.dataSize += formatToken->byteSize;
 			}
 			if (*dataP == ',')
 			{
 				dataP++;
 			}
 		}
-		currentBinaryPacket.dataSize += foundDefinition->expectedsscanfDataSize;
+		// currentBinaryPacket.dataSize += foundDefinition->expectedsscanfDataSize;
 		currentBinaryPacket.status.ack = 1;
 
 		if (!foundDefinition->commandFunction(&currentBinaryPacket))
@@ -457,33 +417,32 @@ void RobustCommunication::parseCharPacket()
 		}
 		else
 		{
-			if (currentBinaryPacket.status.requestType)
+			if (currentBinaryPacket.status.requestType == BinaryPacket::RequestType::GETTER)
 			{
 				currentBinaryPacket.dataSize = 0;
-				uint8_t* bufPtr = currentBinaryPacket.data;
-				memset(currentCharPacket.data, 0, 2024);
+				uint8_t* bufPtr = currentBinaryPacket.data.data.begin();
+				memset(currentCharPacket.data, 0, MaxDataBytes);
 				char* dataP = currentCharPacket.data;
 				
-				for (auto index : foundDefinition->sprintfFormat)
+				for (auto formatToken : foundDefinition->getOutgoingFormat())
 				{
-					strTypeToFormat formatToken = strTypeToFormatMap[index];
 					int sprintfResult = 0;
-					if(strcmp(formatToken.shortName, "s"))
+					if(strcmp(formatToken->shortName, "s"))
 					{
 						byte8union bu = {0};
 						memcpy(&bu, bufPtr, 8);
-						sprintfResult = sprintf(dataP, formatToken.format, bu);
+						sprintfResult = sprintf(dataP, formatToken->format, bu);
 					}
 					else
 					{
-						sprintfResult = sprintf(dataP, formatToken.format, bufPtr);
+						sprintfResult = sprintf(dataP, formatToken->format, bufPtr);
 					}
 					if (sprintfResult == 0)
 					{
 						DEBUGPRINTF("Failure writing data\n");
 					}
 					dataP += sprintfResult;
-					bufPtr += formatToken.byteSize;
+					bufPtr += formatToken->byteSize;
 				}
 				currentCharPacket.header[0] = '@';
 				currentCharPacket.header[1] = '=';
@@ -491,11 +450,6 @@ void RobustCommunication::parseCharPacket()
 				writeCharPacket(&currentCharPacket);
 			}
 		}
-	}
-	//writeBinaryPacket(&currentBinaryPacket);
-	if (currentBinaryPacket.dataSize != 0)
-	{
-		free(currentBinaryPacket.data);
 	}
 	currentReadState = READING_HEADER;
 }
@@ -508,144 +462,11 @@ void RobustCommunication::attachHardwareAccess(HardwareAccess access)
 	hardware = access;
 }
 
-bool RobustCommunication::binaryPacketToDataArray(RobustCommunication::BinaryPacket* packet, uint8_t* buffer, bool ignoreData)
-{
-	uint16_t bufferIndex = 0;
-	buffer[bufferIndex++] = 0xCC;
-	buffer[bufferIndex++] = 0x44;
-	buffer[bufferIndex++] = packet->moduleClass;
-	buffer[bufferIndex++] = packet->command;
-	buffer[bufferIndex++] = packet->status.binary;
-	buffer[bufferIndex++] = (uint8_t)(packet->dataSize >> 8);
-	buffer[bufferIndex++] = (uint8_t)(packet->dataSize & 0xFF);
-	buffer[bufferIndex++] = (uint8_t)(packet->crc >> 8);
-	buffer[bufferIndex++] = (uint8_t)(packet->crc & 0xFF);
-	printf("info: ");
-	for(int i = 0; i < bufferIndex; i++)
-	{
-		printf("0x%02X ", buffer[i]);
-	}
-	if (!ignoreData)
-	{
-		memcpy(&buffer[bufferIndex], packet->data, packet->dataSize);
-	}
-	printf("\tbdata: ");
-	for(int i = bufferIndex; i < bufferIndex + packet->dataSize; i++)
-	{
-		printf("0x%02X ", buffer[i]);
-	}
-	printf("\tpdata: ");
-	for(int i = 0; i < packet->dataSize; i++)
-	{
-		printf("0x%02X ", packet->data[i]);
-	}
-	printf("\n");
-	return true;
-}
-
-bool RobustCommunication::charPacketToDataArray(RobustCommunication::CharPacket* packet, uint8_t* buffer)
-{
-	uint8_t* bufferPtr = buffer;
-	*bufferPtr++ = packet->header[0];
-	*bufferPtr++ = packet->header[1];
-
-	memcpy(bufferPtr, packet->moduleName, strlen(packet->moduleName));
-	bufferPtr += strlen(packet->moduleName);
-
-	*bufferPtr++ = charSeperator;
-
-	memcpy(bufferPtr, packet->commandName, strlen(packet->commandName));
-	bufferPtr += strlen(packet->commandName);
-
-	*bufferPtr++ = charSeperator;
-
-	memcpy(bufferPtr, packet->data, strlen(packet->data));
-	bufferPtr += strlen(packet->data);
-
-	*bufferPtr++ = packet->footer;
-	*bufferPtr++ = '\0';
-
-	DEBUGPRINTF("Databuffer is %s", (char*)buffer);
-	return true;
-}
-
-void RobustCommunication::addCommsDefinition(CommsDefinition* definition)
+void RobustCommunication::addCommandDefinition(CommandDefinition* definition)
 {
 	if (freeDefinitionIndex != definitionSize)
 	{
-		CommsDefinition newDefinition = *definition;
-		if (newDefinition.incomingHRDataStringLayout != nullptr && strcmp(newDefinition.incomingHRDataStringLayout, ""))
-		{
-			newDefinition.expectedsscanfDataSize = 0;
-			char dataFormat[128];
-			uint8_t dataFormatIndex = 0;
-			char dataLayout[128];
-			strcpy(dataLayout, newDefinition.incomingHRDataStringLayout);
-			char* dataLayoutToken;
-			dataLayoutToken = strtok(dataLayout, ",");
-			while (dataLayoutToken != NULL)
-			{
-				strTypeToFormat foundFormat;
-				foundFormat.byteSize = 255;
-				int index = 0;
-				for (strTypeToFormat strTypeFormat : strTypeToFormatMap)
-				{
-					if (!strcmp(strTypeFormat.shortName, dataLayoutToken))
-					{
-						foundFormat = strTypeFormat;
-						newDefinition.sscanfFormat.push_back(index);
-						newDefinition.expectedsscanfDataSize += foundFormat.byteSize;
-						break;
-					}
-					index++;
-				}
-
-				if (foundFormat.byteSize == 255)
-				{
-					DEBUGPRINTF("ERROR, token %s not found\n", dataLayoutToken);
-				}
-				dataLayoutToken = strtok(NULL, ",");
-			}
-			free(dataLayoutToken);
-		}
-
-		if (newDefinition.outgoingHRDataStringLayout != nullptr && strcmp(newDefinition.outgoingHRDataStringLayout, ""))
-		{
-			newDefinition.expectedsprintfDataSize = 0;
-			char dataFormat[128];
-			uint8_t dataFormatIndex = 0;
-			char dataLayout[128];
-			strcpy(dataLayout, newDefinition.outgoingHRDataStringLayout);
-			char* dataLayoutToken;
-			dataLayoutToken = strtok(dataLayout, ",");
-			while (dataLayoutToken != NULL)
-			{
-				strTypeToFormat foundFormat;
-				foundFormat.byteSize = 255;
-
-				int index = 0;
-				for (strTypeToFormat strTypeFormat : strTypeToFormatMap)
-				{
-					if (!strcmp(strTypeFormat.shortName, dataLayoutToken))
-					{
-						foundFormat = strTypeFormat;
-						newDefinition.sprintfFormat.push_back(index);
-						newDefinition.expectedsprintfDataSize += foundFormat.byteSize;
-						break;
-					}
-					index++;
-				}
-
-				if (foundFormat.byteSize == 255)
-				{
-					DEBUGPRINTF("ERROR, token %s not found\n", dataLayoutToken);
-				}
-				dataLayoutToken = strtok(NULL, ",");
-			}
-			free(dataLayoutToken);
-		}
-		
-		definitions[freeDefinitionIndex++] = newDefinition;
+		definitions[freeDefinitionIndex++] = *definition;
 	}
 }
 
@@ -654,10 +475,10 @@ void RobustCommunication::printHelp()
 	DEBUGPRINTF("Available commands: \n");
 	for (int i = 0; i < freeDefinitionIndex; i++)
 	{
-		if (definitions[i].moduleName != NULL)
+		if (!definitions[i].moduleName.empty())
 		{
 			DEBUGPRINTF("- ASCII: module %s, command %s, dataformat %s ", definitions[i].moduleName, definitions[i].commandName, definitions[i].incomingHRDataStringLayout);
-			if (definitions[i].shortDesc != NULL)
+			if (!definitions[i].shortDesc.empty())
 			{
 				DEBUGPRINTF("%s", definitions[i].shortDesc);
 			}
@@ -669,22 +490,22 @@ void RobustCommunication::printHelp()
 
 void RobustCommunication::writeBinaryPacket(BinaryPacket* packet)
 {
-	uint8_t returnPacket[BinaryPacketInformationSize];
-	binaryPacketToDataArray(packet, returnPacket, true);
-	for (int i = 0; i < BinaryPacketInformationSize; i++)
+	uint8_t returnPacket[BinaryPacket::InformationSize];
+	packet->toArray(returnPacket, true);
+	for (int i = 0; i < BinaryPacket::InformationSize; i++)
 	{
 		hardware.write(returnPacket[i]);
 	}
 	for (int i = 0; i < packet->dataSize; i++)
 	{
-		hardware.write(packet->data[i]);
+		hardware.write(packet->data.data[i]);
 	}
 }
 
 void RobustCommunication::writeCharPacket(CharPacket* packet)
 {
 	uint8_t returnPacket[2024] = {0};
-	charPacketToDataArray(packet, returnPacket);
+	packet->toArray(returnPacket);
 	for (uint8_t b : returnPacket)
 	{
 		if(b == '\0') break;
@@ -692,7 +513,5 @@ void RobustCommunication::writeCharPacket(CharPacket* packet)
 	}
 }
 
-
-RobustCommunication::CommsDefinition RobustCommunication::definitions[definitionSize];
 uint16_t RobustCommunication::freeDefinitionIndex = 0;
 uint8_t RobustCommunication::instanceAmount = 0;
