@@ -37,3 +37,22 @@ void BinaryPacket::toArray(uint8_t* buffer, bool ignoreData){
 	}
 	DEBUGPRINTF("\n");
 }
+
+BinaryPacket BinaryPacket::arrayToPacket(std::span<uint8_t> packetBuffer, bool ignoreData){
+	// Unpack here with Fiona's library later. Now we do it the harder way
+	size_t bufferIndex = 0;
+	DataPackerUnpacker dpu;
+	header = packetBuffer[bufferIndex++] << 8;
+	header += packetBuffer[bufferIndex++];
+	moduleClass = packetBuffer[bufferIndex++];
+	command = packetBuffer[bufferIndex++];
+	status.binary = packetBuffer[bufferIndex++] << 8;
+	status.binary += packetBuffer[bufferIndex++];
+	dataSize = packetBuffer[bufferIndex++] << 8;
+	dataSize += packetBuffer[bufferIndex++];
+	crc = packetBuffer[bufferIndex++] << 8;
+	crc += packetBuffer[bufferIndex++];
+	auto subSpan = packetBuffer.subspan(bufferIndex, packetBuffer.size() - bufferIndex);
+	std::memcpy(data.data.begin(), subSpan.data(), subSpan.size());
+	return *this;
+}

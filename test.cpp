@@ -84,7 +84,7 @@ protected:
         testData = dataToTest;
         while (rc_available())
         {
-            rc.singleThreadLoop();
+            rc.read();
         }
     }
 
@@ -179,8 +179,8 @@ TEST_F(CharTestFixture, test_char_packet_to_array)
     testData.packetBytes = (uint8_t*)malloc(testData.packetSize);
     testData.cpacket.toArray(testData.packetBytes);
     testData.packetSize = strlen((char*)testData.packetBytes);
-    ASSERT_EQ(testData.packetSize, 23) << (char*)testData.packetBytes;
-    ASSERT_STREQ((char*)testData.packetBytes, "@>CC|setchannel|1,1500\n");
+    ASSERT_EQ(testData.packetSize, 24) << (char*)testData.packetBytes;
+    ASSERT_STREQ((char*)testData.packetBytes, "@>CC|setchannel|1,1500|\n");
 }
 
 TEST_F(BinaryTestFixture, set_via_bin_packet)
@@ -206,7 +206,7 @@ TEST_F(BinaryTestFixture, get_via_bin_packet)
     TestData testData;
     testData.packet.header = 0xCC44;
     testData.packet.moduleClass = 0x01;
-    testData.packet.command = 0x01;
+    testData.packet.command = 0x02;
     testData.packet.dataSize = 1;
     testData.packet.data.pack(uint8_t{0x01});
     testData.packet.status.requestType = 1;
@@ -249,5 +249,5 @@ TEST_F(CharTestFixture, get_via_char_packet)
     processPacket(testData);
     //ASSERT_FALSE(testData.packet.status.internalError);
     //ASSERT_TRUE(testData.packet.status.ack);
-    ASSERT_STREQ((char*)returnedPacket, "@=CC|getchannel|1500\n");
+    ASSERT_STREQ((char*)returnedPacket, "@=CC|getchannel|1500|\n");
 }

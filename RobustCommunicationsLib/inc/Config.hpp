@@ -7,6 +7,7 @@ namespace RobustCommunications{
  * Size of all the information bytes used.
  */
 static const uint16_t MaxDataBytes = 512;
+static const uint16_t MaxPacketBytes = MaxDataBytes + 50;
 
 static const uint16_t definitionSize = 300;
 
