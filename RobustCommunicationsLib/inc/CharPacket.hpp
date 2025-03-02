@@ -5,6 +5,7 @@
 #include <array>
 #include <functional>
 #include <vector>
+#include <span>
 #include <stdint.h>
 
 #include "Config.hpp"
@@ -18,7 +19,8 @@ class CharPacket{
     char commandName[30] = {0};
     char data[MaxDataBytes] = {0};
     char footer = 0;
-    CharPacket arrayToPacket();
+
+    CharPacket arrayToPacket(std::span<uint8_t> packetBuffer, bool ignoreData = false);
     void toArray(uint8_t* buffer, bool ignoreData = false);
     std::string toString(bool ignoreData = false);
     bool fromString(std::string str);

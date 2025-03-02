@@ -56,8 +56,7 @@ public:
      *
      * @returns True if packet is handled
      */
-    bool singleThreadLoop();
-
+    bool read();
 
     /**
      * Used to attach the functions to read/write the data.
@@ -71,48 +70,23 @@ public:
     void printHelp();
 
 private:
-    /**
-     * Logic to read a binary packet.
-     *
-     */
-    void readForBinaryPacket();
-
-    /**
-     * Logic to read a char packet.
-     *
-     */
-    void readForCharPacket();
 
     void parseBinaryPacket();
-
     void parseCharPacket();
-
-    enum readState
-    {
-        READING_HEADER,
-        READING_MODULE,
-        READING_COMMAND,
-        READING_STATUS,
-        READING_DATASIZE,
-        READING_CRC,
-        READING_DATA,
-        READING_FOOTER,
-        READING_DONE
-    };
 
     void writeBinaryPacket(BinaryPacket* packet);
     void writeCharPacket(CharPacket* packet);
 
-    readState currentReadState = READING_HEADER;
-    inline static std::array<CommandDefinition,definitionSize> definitions;
+    inline static std::array<CommandDefinition, definitionSize> definitions;
     static uint16_t freeDefinitionIndex;
     static uint8_t instanceAmount;
 
     uint8_t transmittingPacketNumber = 0;
     uint8_t receivedPacketNumber = 0;
     HardwareAccess hardware;
-    uint8_t dataReadBuffer[1040] = { 0 }; // Ugly but usefull
+    std::array<uint8_t, MaxPacketBytes> dataReadBuffer = { 0 };
     uint16_t dataReadBufferIndex = 0;
+    
 };
 };
 #endif

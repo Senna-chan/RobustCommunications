@@ -4,6 +4,7 @@
 #include <array>
 #include <functional>
 #include <vector>
+#include <span>
 #include <stdint.h>
 
 #include "Config.hpp"
@@ -29,21 +30,15 @@ class BinaryPacket{
             SETTER = 1,
             RESPONSE = 2
         };
-        uint16_t header;
-        uint8_t moduleClass;
-        uint8_t command;
-        uint16_t dataSize;
-        uint16_t crc;
-        DataPackerUnpacker data;
-
-        BinaryPacket arrayToPacket(uint8_t* buffer, bool ignoreData = false);
-        void toArray(uint8_t* buffer, bool ignoreData = false);
-        RequestType getRequestType();
+        // Package order! KEEP IN SYNC
+        uint16_t header = 0;
+        uint8_t moduleClass = 0;
+        uint8_t command = 0;
         union
         {
-            uint16_t binary;
+            uint16_t binary = 0;
             struct{
-                uint16_t requestType : 2;    // If 0 then it is a request. If 1 then it is a response. If being used with a char packet then 0 is setter, 1 is getter
+                uint16_t requestType : 2;    // See RequestType enum for what is what
                 uint16_t ack : 1;    
                 uint16_t internalError : 1;  // Error in the handling of data
                 uint16_t unknownModule : 1; 
@@ -53,6 +48,21 @@ class BinaryPacket{
                 uint16_t oneshot : 1;    // If set then handle and forget
             };
         } status;
+        uint16_t dataSize = 0;
+        uint16_t crc = 0;
+        DataPackerUnpacker data;
+        //
+        // Indexes
+        static constexpr size_t HEADERINDEX = 0;
+        static constexpr size_t MODULEINDEX = HEADERINDEX + sizeof(header);
+        static constexpr size_t COMMANDINDEX = MODULEINDEX + sizeof(moduleClass);
+        static constexpr size_t STATUSINDEX = COMMANDINDEX + sizeof(command);
+        static constexpr size_t DATASIZEINDEX = STATUSINDEX + sizeof(status);
+        static constexpr size_t CRCINDEX = DATASIZEINDEX + sizeof(dataSize);
+        static constexpr size_t DATAINDEX = CRCINDEX + sizeof(crc);
+        BinaryPacket arrayToPacket(std::span<uint8_t> packetBuffer, bool ignoreData = false);
+        void toArray(uint8_t* buffer, bool ignoreData = false);
+        RequestType getRequestType();
     private:
 };
 };
