@@ -17,8 +17,8 @@ template<std::size_t N>
 using smallest_index =
 	std::conditional_t<(N < 1z <<  8), std::uint8_t,
 	std::conditional_t<(N < 1z << 16), std::uint16_t,
-	std::conditional_t<(N < 1z << 32), std::uint32_t,
-	std::size_t>>>;
+	// std::conditional_t<(N < 1z << 32), std::uint32_t,
+	std::size_t>>;
 } // namespace impl
 
 template<typename ValueType, std::size_t N, std::array<ValueType, N> Values>
@@ -28,7 +28,7 @@ public:
 	
 	constexpr virt_ptr(index_type index): index{index} {
 		if (index >= N) {
-			throw std::out_of_range{"index out of bounds"};
+			//throw std::out_of_range{"index out of bounds"};
 		}
 	}
 

@@ -33,13 +33,7 @@ public:
         instanceAmount--;
         if (instanceAmount == 0)
         {
-            for (auto definition : definitions)
-            {
-                // if (definition.dataStringLayout != NULL)
-                // {
-                //     //free(definition.sscanfFormat);
-                // }
-            }
+            
         }
     }
 
@@ -77,9 +71,9 @@ private:
     void writeBinaryPacket(BinaryPacket* packet);
     void writeCharPacket(CharPacket* packet);
 
-    inline static std::array<CommandDefinition, definitionSize> definitions;
-    static uint16_t freeDefinitionIndex;
-    static uint8_t instanceAmount;
+    inline static std::vector<CommandDefinition> definitions;
+    inline static uint16_t freeDefinitionIndex = 0;
+    inline static uint8_t instanceAmount = 0;
 
     uint8_t transmittingPacketNumber = 0;
     uint8_t receivedPacketNumber = 0;

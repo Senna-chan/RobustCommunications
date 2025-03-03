@@ -279,6 +279,3 @@ void RobustCommunication::writeCharPacket(CharPacket* packet) {
         hardware.write(b);
     }
 }
-
-uint16_t RobustCommunication::freeDefinitionIndex = 0;
-uint8_t RobustCommunication::instanceAmount = 0;
